@@ -1,0 +1,10 @@
+{
+	"name": "session-band",
+	"version": "0.1.0",
+	"description": "Shows the directory, git branch, model, session and work time, context, cost, and rate limit on the mode line under the prompt",
+	"author": { "name": "Yasunobu" },
+	"homepage": "https://github.com/P4suta/claude-code-session-band",
+	"repository": "https://github.com/P4suta/claude-code-session-band",
+	"license": "MIT OR Apache-2.0",
+	"types": "./types/index.d.ts"
+}

@@ -1,0 +1,6 @@
+{
+	"name": "claude-code-session-band",
+	"description": "The session-band mod for Claude Code",
+	"owner": { "name": "Yasunobu" },
+	"plugins": [{ "name": "session-band", "source": "./" }]
+}

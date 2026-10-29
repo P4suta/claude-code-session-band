@@ -1,0 +1,11 @@
+# Quick checks on what is staged before a commit, and the full local gate before a push.
+pre-commit:
+  commands:
+    biome:
+      glob: "*.{ts,tsx,json}"
+      run: mise x -- biome check --error-on-warnings --no-errors-on-unmatched {staged_files}
+
+pre-push:
+  commands:
+    check:
+      run: mise x -- just check

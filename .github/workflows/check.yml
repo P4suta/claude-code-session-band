@@ -1,0 +1,40 @@
+# The fast gate on every change: the checks a developer runs that need no engine-written types, on one pinned Linux runner.
+# One summary job is the required check.
+name: check
+
+on:
+  pull_request:
+  merge_group:
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: lint, validate, and test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@82a612c5ab8bcda7cc5db6b7e81a8e7584c3dc6e # v5.2.3
+        with:
+          cache: true
+      - run: mise x -- just check-without-types
+
+  summary:
+    name: summary
+    needs: check
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require the check job to have passed
+        env:
+          RESULT: ${{ needs.check.result }}
+        run: test "$RESULT" = success
