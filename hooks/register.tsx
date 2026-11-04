@@ -1,7 +1,7 @@
 import type { EngineInterface, Register, RenderInput } from "claude-code";
 import { atom, read, update } from "claude-code";
 
-import type { GitInfo } from "../types";
+import type { FableUsage, GitInfo } from "../types";
 import {
 	bandSegments,
 	cells,
@@ -18,6 +18,7 @@ import {
 	tildePath,
 	workAt,
 } from "./format";
+import { fablePercent, parseFableUsage, USAGE_REFRESH_MS } from "./usage";
 
 // Bumped to redraw the band; its value means nothing.
 const tick = atom({ plugin: "session-band", key: "tick" } as const, 0);
@@ -29,6 +30,31 @@ const git = atom({ plugin: "session-band", key: "git" } as const, null, {
 const work = atom({ plugin: "session-band", key: "work" } as const, null, {
 	shape: "work-1",
 });
+const fable = atom({ plugin: "session-band", key: "fable" } as const, null, {
+	shape: "fable-1",
+});
+
+const readFableUsage = async (
+	$: EngineInterface,
+): Promise<FableUsage | null> => {
+	try {
+		const authorization = await $.session.authorize();
+		if (authorization?.kind !== "bearer") return null;
+		const response = await $.http.fetch(
+			"https://api.anthropic.com/api/oauth/usage",
+			{
+				auth: authorization.handle,
+				headers: { "anthropic-beta": "oauth-2025-04-20" },
+			},
+		);
+
+		return response.ok
+			? parseFableUsage(response.text, await $.clock.now())
+			: null;
+	} catch {
+		return null;
+	}
+};
 
 const GIT_STATUS = [
 	"git",
@@ -63,7 +89,31 @@ const style = (part: Part) => ({
 });
 
 export const register: Register = (on) => {
+	let usageGeneration = 0;
+	let isReadingUsage = false;
+	let isPollingUsage = false;
 	on("session.start", async ($, e, next) => {
+		usageGeneration += 1;
+		await update($, fable, () => null);
+		const refreshUsage = (): void => {
+			if (isReadingUsage) return;
+			const generation = usageGeneration;
+			isReadingUsage = true;
+			void readFableUsage($)
+				.then(async (usage) => {
+					if (generation === usageGeneration)
+						await update($, fable, () => usage);
+				})
+				.catch(() => undefined)
+				.finally(() => {
+					isReadingUsage = false;
+				});
+		};
+		$.clock.after(0, refreshUsage);
+		if (!isPollingUsage) {
+			isPollingUsage = true;
+			$.clock.every(USAGE_REFRESH_MS, refreshUsage);
+		}
 		let last: number | undefined;
 		$.clock.every(1000, () => {
 			void Promise.all([$.clock.now(), $.session.usage(), read($, work)])
@@ -77,6 +127,15 @@ export const register: Register = (on) => {
 				.catch(() => undefined);
 		});
 		refreshGit($);
+
+		return next(e);
+	});
+
+	on("session.end", async ($, e, next) => {
+		if (e.reason === "logout") {
+			usageGeneration += 1;
+			await update($, fable, () => null);
+		}
 
 		return next(e);
 	});
@@ -173,15 +232,17 @@ const drawBand = async (
 	lead: string,
 ) => {
 	await read($, tick);
-	const [now, usage, model, cwd, home, gitInfo, clock] = await Promise.all([
-		$.clock.now(),
-		$.session.usage(),
-		$.session.model(),
-		$.session.cwd(),
-		$.env.get("HOME"),
-		read($, git),
-		read($, work),
-	]);
+	const [now, usage, model, cwd, home, gitInfo, clock, fableUsage] =
+		await Promise.all([
+			$.clock.now(),
+			$.session.usage(),
+			$.session.model(),
+			$.session.cwd(),
+			$.env.get("HOME"),
+			read($, git),
+			read($, work),
+			read($, fable),
+		]);
 
 	const path = tildePath(cwd, home);
 	const segments = bandSegments({
@@ -191,9 +252,9 @@ const drawBand = async (
 		contextPercent: usage.context.percent,
 		work: workAt(clock, usage.startedAt, now),
 		usd: usage.cost?.usd,
-		fiveHourPercent: usage.rateLimits.find(
-			(limit) => limit.kind === "five_hour",
-		)?.percentUsed,
+		weeklyPercent: usage.rateLimits.find((limit) => limit.kind === "seven_day")
+			?.percentUsed,
+		fablePercent: fablePercent(fableUsage, now),
 	});
 	const prefix = `${ICON.directory} `;
 	const layout = layoutBand(

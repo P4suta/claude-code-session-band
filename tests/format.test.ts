@@ -313,7 +313,8 @@ const FACTS = {
 	contextPercent: 42,
 	work: { totalMs: 18 * 60_000 + 2000, turnMs: null },
 	usd: 3.214,
-	fiveHourPercent: 37,
+	weeklyPercent: 37,
+	fablePercent: 62,
 } as const;
 
 const shown = (facts: Parameters<typeof bandSegments>[0]): string =>
@@ -326,7 +327,12 @@ test("layoutBand keeps the lowest ranks in drawing order at every width", () => 
 		FACTS,
 		{ ...FACTS, git: null },
 		{ ...FACTS, contextPercent: 91, work: { totalMs: 0, turnMs: 5000 } },
-		{ ...FACTS, usd: undefined, fiveHourPercent: undefined },
+		{
+			...FACTS,
+			usd: undefined,
+			weeklyPercent: undefined,
+			fablePercent: undefined,
+		},
 	];
 	const bad: string[] = [];
 	for (const facts of variants) {
@@ -369,7 +375,8 @@ test("bandSegments draws every fact in drawing order, each after its icon", () =
 			`  ${ICON.work} 18:02`,
 			`  ${ICON.context} ▕███▍    ▏42%`,
 			`  ${ICON.cost} $3.21`,
-			`  ${ICON.limit} 5h▕███     ▏37%`,
+			`  ${ICON.limit} 7d▕███     ▏37%`,
+			`  ${ICON.limit} Fable▕█████   ▏62%`,
 		].join(""),
 	);
 	expect(
@@ -378,9 +385,25 @@ test("bandSegments draws every fact in drawing order, each after its icon", () =
 			git: null,
 			contextPercent: undefined,
 			usd: undefined,
-			fiveHourPercent: undefined,
+			weeklyPercent: undefined,
+			fablePercent: undefined,
 		}),
 	).toBe(`  ${ICON.model} Opus 5.5  ${ICON.session} 1h 5m  ${ICON.work} 18:02`);
+});
+
+test("weekly and Fable gauges independently preserve zero and omit missing readings", () => {
+	for (const weeklyPercent of [undefined, Number.NaN, 0, 37, 100]) {
+		for (const fablePercent of [undefined, Number.NaN, 0, 62, 100]) {
+			const text = shown({ ...FACTS, weeklyPercent, fablePercent });
+			expect(text.includes("7d")).toBe(
+				clampPercent(weeklyPercent) !== undefined,
+			);
+			expect(text.includes("Fable")).toBe(
+				clampPercent(fablePercent) !== undefined,
+			);
+			expect(text).not.toContain("5h");
+		}
+	}
 });
 
 test("bandSegments marks a full context and a running turn by weight and inversion", () => {
