@@ -329,7 +329,8 @@ export type BandFacts = {
 	contextPercent: number | undefined;
 	work: { totalMs: number; turnMs: number | null };
 	usd: number | undefined;
-	fiveHourPercent: number | undefined;
+	weeklyPercent: number | undefined;
+	fablePercent: number | undefined;
 };
 
 export const gitLabel = (info: GitInfo): string => {
@@ -381,11 +382,16 @@ export const bandSegments = (facts: BandFacts): Segment[] => {
 	const usd = formatUsd(facts.usd);
 	if (usd !== undefined) push(RANK.cost, icon(ICON.cost), { text: usd });
 
-	const limit = clampPercent(facts.fiveHourPercent);
-	if (limit !== undefined)
-		push(RANK.limit, icon(ICON.limit), {
-			text: `5h${gauge(limit, GAUGE_CELLS)}${limit}%`,
-		});
+	for (const [label, percent] of [
+		["7d", facts.weeklyPercent],
+		["Fable", facts.fablePercent],
+	] as const) {
+		const limit = clampPercent(percent);
+		if (limit !== undefined)
+			push(RANK.limit, icon(ICON.limit), {
+				text: `${label}${gauge(limit, GAUGE_CELLS)}${limit}%`,
+			});
+	}
 
 	return segments;
 };
