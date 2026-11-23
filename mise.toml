@@ -1,6 +1,6 @@
 [tools]
 just = "1.59.0"
-node = "24.22.3"
+node = "26.13.1"
 "npm:typescript" = "7.0.2"
 biome = "2.6.2"
 claude = "2.1.328"
